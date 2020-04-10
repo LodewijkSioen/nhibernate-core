@@ -233,6 +233,14 @@ namespace NHibernate.Test.Linq
 		}
 		
 		[Test]
+		public async Task CanProjectCollectionsWithFetchAsync()
+		{
+			var query = db.Orders.Fetch(o => o.OrderLines).Select(o => o.OrderLines);
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(830));
+		}
+
+		[Test]
 		public async Task CanProjectCollectionsInsideAnonymousTypeAsync()
 		{
 			var query = db.Orders.Select(o => new { o.OrderId, o.OrderLines });
