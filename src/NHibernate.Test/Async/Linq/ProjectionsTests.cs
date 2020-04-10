@@ -12,8 +12,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NHibernate.DomainModel.Northwind.Entities;
-using NUnit.Framework;
 using NHibernate.Linq;
+using NUnit.Framework;
 
 namespace NHibernate.Test.Linq
 {
@@ -223,6 +223,14 @@ namespace NHibernate.Test.Linq
 			var result = await (query.ToListAsync());
 			Assert.That(result.Count, Is.EqualTo(2155));
 		}
+		
+		[Test]
+		public async Task CanProjectManyCollectionsWithFetchAsync()
+		{
+			var query = db.Orders.FetchMany(o => o.OrderLines).SelectMany(o => o.OrderLines);
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(2155));
+		}
 
 		[Test]
 		public async Task CanProjectCollectionsAsync()
@@ -233,10 +241,28 @@ namespace NHibernate.Test.Linq
 		}
 
 		[Test]
+		public async Task CanProjectCollectionsWithFetchAsync()
+		{
+			var query = db.Orders.Fetch(o => o.OrderLines).Select(o => o.OrderLines);
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(830));
+		}
+
+		[Test]
 		public async Task CanProjectCollectionsInsideAnonymousTypeAsync()
 		{
 			var query = db.Orders.Select(o => new { o.OrderId, o.OrderLines });
 			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
+			Assert.That(result.Count, Is.EqualTo(830));
+		}
+
+		[Test]
+		public async Task CanProjectCollectionsInsideAnonymousTypeWithFetchAsync()
+		{
+			var query = db.Orders.Fetch(o => o.OrderLines).Select(o => new { o.OrderId, o.OrderLines });
+			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
 			Assert.That(result.Count, Is.EqualTo(830));
 		}
 
@@ -250,6 +276,19 @@ namespace NHibernate.Test.Linq
 
 			var result = await (query.ToListAsync());
 			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
+			Assert.That(result[0].o.OrderLines, Is.EquivalentTo(result[0].OrderLines));
+		}
+
+		[Test]
+		public async Task ProjectAnonymousTypeWithCollectionWithFetchAsync()
+		{ 
+			var query = from o in db.Orders.Fetch(o => o.OrderLines)
+						select new { o, o.OrderLines };
+
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
 			Assert.That(result[0].o.OrderLines, Is.EquivalentTo(result[0].OrderLines));
 		}
 
@@ -263,6 +302,19 @@ namespace NHibernate.Test.Linq
 
 			var result = await (query.ToListAsync());
 			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
+			Assert.That(result[0].o.OrderLines, Is.EquivalentTo(result[0].OrderLines));
+		}
+
+		[Test]
+		public async Task ProjectAnonymousTypeWithCollection1WithFetchAsync()
+		{
+			var query = from o in db.Orders.Fetch(o => o.OrderLines)
+						select new { o.OrderLines, o };
+
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
 			Assert.That(result[0].o.OrderLines, Is.EquivalentTo(result[0].OrderLines));
 		}
 
@@ -275,6 +327,18 @@ namespace NHibernate.Test.Linq
 						select new { o.OrderLines, A = 1, B = 2 };
 
 			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
+			Assert.That(result.Count, Is.EqualTo(830));
+		}
+
+		[Test]
+		public async Task ProjectAnonymousTypeWithCollection2WithFetchAsync()
+		{
+			var query = from o in db.Orders.Fetch(o => o.OrderLines)
+						select new { o.OrderLines, A = 1, B = 2 };
+
+			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
 			Assert.That(result.Count, Is.EqualTo(830));
 		}
 
@@ -287,6 +351,18 @@ namespace NHibernate.Test.Linq
 						select new { OrderLines = o.OrderLines.ToList() };
 
 			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
+			Assert.That(result.Count, Is.EqualTo(830));
+		}
+
+		[Test]
+		public async Task ProjectAnonymousTypeWithCollection3WithFetchAsync()
+		{
+			var query = from o in db.Orders.Fetch(o => o.OrderLines)
+						select new { OrderLines = o.OrderLines.ToList() };
+
+			var result = await (query.ToListAsync());
+			Assert.That(NHibernateUtil.IsInitialized(result[0].OrderLines), Is.True);
 			Assert.That(result.Count, Is.EqualTo(830));
 		}
 
@@ -304,9 +380,31 @@ namespace NHibernate.Test.Linq
 
 			var result = await (query.ToListAsync());
 			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].ExpandedElement.OrderLines), Is.False);
+			Assert.That(NHibernateUtil.IsInitialized(result[0].ProjectedProperty0), Is.True);
 			Assert.That(result[0].ExpandedElement.OrderLines, Is.EquivalentTo(result[0].ProjectedProperty0));
 		}
-		
+
+		[Test]
+		public async Task ProjectKnownTypeWithCollectionWithFetchAsync()
+		{
+			// NH-3396
+			var query = from o in db.Orders.Fetch(x => x.OrderLines)
+			            select new ExpandedWrapper<Order, ISet<OrderLine>>
+			            {
+				            ExpandedElement = o,
+				            ProjectedProperty0 = o.OrderLines,
+				            Description = "OrderLine",
+				            ReferenceDescription = "OrderLine"
+			            };
+
+			var result = await (query.ToListAsync());
+			Assert.That(result.Count, Is.EqualTo(830));
+			Assert.That(NHibernateUtil.IsInitialized(result[0].ExpandedElement.OrderLines), Is.True);
+			Assert.That(NHibernateUtil.IsInitialized(result[0].ProjectedProperty0), Is.True);
+			Assert.That(result[0].ExpandedElement.OrderLines, Is.EquivalentTo(result[0].ProjectedProperty0));
+		}
+
 		[Test]
 		public async Task ProjectKnownTypeWithCollection2Async()
 		{
