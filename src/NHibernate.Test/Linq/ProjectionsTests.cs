@@ -220,7 +220,7 @@ namespace NHibernate.Test.Linq
 			var result = query.ToList();
 			Assert.That(result.Count, Is.EqualTo(830));
 		}
-		
+
 		[Test]
 		public void CanProjectCollectionsInsideAnonymousType()
 		{
